@@ -147,3 +147,22 @@ pub struct LegacyPciChipsetDeviceHandle {
     /// **This is part of the legacy chipset's fixed contract; do not make this negotiable.**
     pub bdf: (u8, u8, u8),
 }
+
+/// The fully-resolved chipset configuration for a VM.
+///
+/// Produced by the `VmManifestBuilder` in the `vm_manifest_builder` crate and consumed by
+/// [`BaseChipsetBuilder::with_vm_chipset_result`].
+///
+/// [`VmChipsetCapabilities`](options::VmChipsetCapabilities) is `Copy`, so
+/// callers can read it before passing the struct to the builder (which does not
+/// use capabilities).
+pub struct VmChipsetResult {
+    /// The base chipset manifest for the VM.
+    pub chipset: options::BaseChipsetManifest,
+    /// The list of chipset devices present in the VM.
+    pub chipset_devices: Vec<ChipsetDeviceHandle>,
+    /// The list of legacy PCI chipset devices with explicit placement metadata.
+    pub pci_chipset_devices: Vec<LegacyPciChipsetDeviceHandle>,
+    /// Derived chipset capabilities needed by firmware and table generation.
+    pub capabilities: options::VmChipsetCapabilities,
+}

@@ -146,6 +146,27 @@ impl<'a> BaseChipsetBuilder<'a> {
         self
     }
 
+    /// Configures the builder with the full VM chipset configuration result.
+    ///
+    /// This is a convenience method that calls [`Self::with_expected_manifest`],
+    /// [`Self::with_device_handles`], and [`Self::with_pci_device_handles`] in
+    /// a single call.
+    ///
+    /// The [`VmChipsetCapabilities`](options::VmChipsetCapabilities) field is
+    /// not used by the builder; callers should extract it before calling this
+    /// method (it is `Copy`).
+    pub fn with_vm_chipset_result(self, result: crate::VmChipsetResult) -> Self {
+        let crate::VmChipsetResult {
+            chipset,
+            chipset_devices,
+            pci_chipset_devices,
+            capabilities: _,
+        } = result;
+        self.with_expected_manifest(chipset)
+            .with_device_handles(chipset_devices)
+            .with_pci_device_handles(pci_chipset_devices)
+    }
+
     /// Emit "missing device" traces when accessing unknown port IO addresses.
     ///
     /// Disabled by default.

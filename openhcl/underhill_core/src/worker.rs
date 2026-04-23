@@ -2374,14 +2374,11 @@ async fn new_underhill_vm(
         );
     }
 
-    let vm_manifest_builder::VmChipsetResult {
-        chipset,
-        mut chipset_devices,
-        pci_chipset_devices,
-        capabilities,
-    } = chipset
+    let mut vm_chipset = chipset
         .build()
         .context("failed to build chipset configuration")?;
+
+    let capabilities = vm_chipset.capabilities;
 
     #[cfg(guest_arch = "x86_64")]
     let mut deps_hyperv_firmware_pcat = None;
@@ -2717,22 +2714,29 @@ async fn new_underhill_vm(
 
     let synic = virt::Hv1::synic(partition.as_ref());
 
-    let deps_generic_ioapic = chipset.with_generic_ioapic.then(|| dev::GenericIoApicDeps {
-        num_entries: virt::irqcon::IRQ_LINES as u8,
-        routing: Box::new(vmm_core::emuplat::ioapic::IoApicRouting(
-            partition.ioapic_routing(),
-        )),
-    });
+    let deps_generic_ioapic =
+        vm_chipset
+            .chipset
+            .with_generic_ioapic
+            .then(|| dev::GenericIoApicDeps {
+                num_entries: virt::irqcon::IRQ_LINES as u8,
+                routing: Box::new(vmm_core::emuplat::ioapic::IoApicRouting(
+                    partition.ioapic_routing(),
+                )),
+            });
 
     use vmotherboard::options::dev;
 
     let pci_bus_id_piix4 = vmotherboard::BusId::new("i440bx");
 
-    let deps_piix4_pci_bus = chipset.with_piix4_pci_bus.then(|| dev::Piix4PciBusDeps {
-        bus_id: pci_bus_id_piix4.clone(),
-    });
+    let deps_piix4_pci_bus = vm_chipset
+        .chipset
+        .with_piix4_pci_bus
+        .then(|| dev::Piix4PciBusDeps {
+            bus_id: pci_bus_id_piix4.clone(),
+        });
 
-    let deps_i440bx_host_pci_bridge = if chipset.with_i440bx_host_pci_bridge {
+    let deps_i440bx_host_pci_bridge = if vm_chipset.chipset.with_i440bx_host_pci_bridge {
         Some(dev::I440BxHostPciBridgeDeps {
             attached_to: pci_bus_id_piix4.clone(),
             adjust_gpa_range: {
@@ -2774,11 +2778,13 @@ async fn new_underhill_vm(
         None
     };
 
-    let deps_generic_isa_dma = chipset
+    let deps_generic_isa_dma = vm_chipset
+        .chipset
         .with_generic_isa_dma
         .then_some(dev::GenericIsaDmaDeps);
     let deps_piix4_power_management =
-        chipset
+        vm_chipset
+            .chipset
             .with_piix4_power_management
             .then(|| dev::Piix4PowerManagementDeps {
                 attached_to: pci_bus_id_piix4.clone(),
@@ -2787,7 +2793,8 @@ async fn new_underhill_vm(
                 })),
             });
 
-    let deps_winbond_super_io_and_floppy_stub = chipset
+    let deps_winbond_super_io_and_floppy_stub = vm_chipset
+        .chipset
         .with_winbond_super_io_and_floppy_stub
         .then_some(dev::WinbondSuperIoAndFloppyStubDeps);
 
@@ -2795,13 +2802,17 @@ async fn new_underhill_vm(
     let deps_piix4_cmos_rtc = None;
 
     #[cfg(guest_arch = "x86_64")]
-    let deps_piix4_cmos_rtc = chipset.with_piix4_cmos_rtc.then(|| dev::Piix4CmosRtcDeps {
-        time_source: Box::new(rtc_time_source.new_linked_clock()),
-        initial_cmos: Some(firmware_pcat::default_cmos_values(&mem_layout)),
-        enlightened_interrupts: true, // As advertised by the PCAT BIOS.
-    });
+    let deps_piix4_cmos_rtc =
+        vm_chipset
+            .chipset
+            .with_piix4_cmos_rtc
+            .then(|| dev::Piix4CmosRtcDeps {
+                time_source: Box::new(rtc_time_source.new_linked_clock()),
+                initial_cmos: Some(firmware_pcat::default_cmos_values(&mem_layout)),
+                enlightened_interrupts: true, // As advertised by the PCAT BIOS.
+            });
 
-    let deps_hyperv_ide = if chipset.with_hyperv_ide {
+    let deps_hyperv_ide = if vm_chipset.chipset.with_hyperv_ide {
         let [primary_channel_drives, secondary_channel_drives] = ide_drives;
         Some(dev::HyperVIdeDeps {
             attached_to: pci_bus_id_piix4.clone(),
@@ -2815,7 +2826,8 @@ async fn new_underhill_vm(
     };
 
     let deps_underhill_vga_proxy =
-        chipset
+        vm_chipset
+            .chipset
             .with_underhill_vga_proxy
             .then(|| dev::UnderhillVgaProxyDeps {
                 attached_to: pci_bus_id_piix4,
@@ -2825,7 +2837,7 @@ async fn new_underhill_vm(
                 register_host_io_fastpath: Box::new(UhRegisterHostIoFastPath(partition.clone())),
             });
 
-    let deps_hyperv_guest_watchdog = if chipset.with_hyperv_guest_watchdog {
+    let deps_hyperv_guest_watchdog = if vm_chipset.chipset.with_hyperv_guest_watchdog {
         Some(dev::HyperVGuestWatchdogDeps {
             port_base: WDAT_PORT,
             watchdog_platform: {
@@ -2854,16 +2866,23 @@ async fn new_underhill_vm(
         None
     };
 
-    let deps_generic_psp = { chipset.with_generic_psp.then_some(dev::GenericPspDeps {}) };
+    let deps_generic_psp = {
+        vm_chipset
+            .chipset
+            .with_generic_psp
+            .then_some(dev::GenericPspDeps {})
+    };
 
-    let deps_generic_cmos_rtc = chipset
-        .with_generic_cmos_rtc
-        .then(|| dev::GenericCmosRtcDeps {
-            irq: 8,
-            time_source: Box::new(rtc_time_source.new_linked_clock()),
-            century_reg_idx: 0x32,
-            initial_cmos: None,
-        });
+    let deps_generic_cmos_rtc =
+        vm_chipset
+            .chipset
+            .with_generic_cmos_rtc
+            .then(|| dev::GenericCmosRtcDeps {
+                irq: 8,
+                time_source: Box::new(rtc_time_source.new_linked_clock()),
+                century_reg_idx: 0x32,
+                initial_cmos: None,
+            });
 
     if dps.general.tpm_enabled {
         let no_persistent_secrets =
@@ -2921,7 +2940,7 @@ async fn new_underhill_vm(
             TpmRegisterLayout::Mmio
         };
 
-        chipset_devices.push(ChipsetDeviceHandle {
+        vm_chipset.chipset_devices.push(ChipsetDeviceHandle {
             name: "tpm".to_owned(),
             resource: RemoteChipsetDeviceHandle {
                 device: TpmDeviceHandle {
@@ -2948,7 +2967,8 @@ async fn new_underhill_vm(
     };
 
     let deps_hyperv_power_management =
-        chipset
+        vm_chipset
+            .chipset
             .with_hyperv_power_management
             .then(|| dev::HyperVPowerManagementDeps {
                 acpi_irq: SYSTEM_IRQ_ACPI,
@@ -3030,9 +3050,7 @@ async fn new_underhill_vm(
         },
         devices,
     )
-    .with_expected_manifest(chipset)
-    .with_device_handles(chipset_devices)
-    .with_pci_device_handles(pci_chipset_devices)
+    .with_vm_chipset_result(vm_chipset)
     .with_trace_unknown_mmio(!use_mmio_hypercalls)
     .with_fallback_mmio_device(fallback_mmio_device)
     .build(&driver_source, &state_units, &resolver)
