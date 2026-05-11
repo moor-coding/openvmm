@@ -1035,6 +1035,33 @@ impl<T: VbsVmCallReport> HypercallDispatch<HvVbsVmCallReport> for T {
     }
 }
 
+/// Defines the `HvVbsVmCallDeviceMeasurementReport` hypercall.
+pub type HvVbsVmCallDeviceMeasurementReport = SimpleHypercall<
+    defs::VbsVmCallDeviceMeasurementReport,
+    defs::VbsVmCallDeviceMeasurementReportOutput,
+    { HypercallCode::HvCallVbsVmCallDeviceMeasurementReport.0 },
+>;
+
+/// Implements the `HvVbsVmCallDeviceMeasurementReport` hypercall.
+pub trait VbsVmCallDeviceMeasurementReport {
+    /// Generates a device measurement report.
+    fn vbs_vm_call_device_measurement_report(
+        &self,
+        device_id: u64,
+        report_data: &[u8],
+    ) -> HvResult<defs::VbsVmCallDeviceMeasurementReportOutput>;
+}
+
+impl<T: VbsVmCallDeviceMeasurementReport> HypercallDispatch<HvVbsVmCallDeviceMeasurementReport>
+    for T
+{
+    fn dispatch(&mut self, params: HypercallParameters<'_>) -> HypercallOutput {
+        HvVbsVmCallDeviceMeasurementReport::run(params, |header| {
+            self.vbs_vm_call_device_measurement_report(header.device_id, &header.report_data)
+        })
+    }
+}
+
 /// Defines the `HvRestorePartitionTime` hypercall.
 pub type HvRestorePartitionTime = SimpleHypercall<
     defs::RestorePartitionTime,

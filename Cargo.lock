@@ -7581,6 +7581,7 @@ dependencies = [
  "static_assertions",
  "tdx_guest_device",
  "thiserror 2.0.16",
+ "tracing",
  "x86defs",
  "zerocopy",
 ]

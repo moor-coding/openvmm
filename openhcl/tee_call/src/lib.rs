@@ -31,6 +31,8 @@ pub enum Error {
     OpenDevVbsGuest(#[source] hcl::ioctl::Error),
     #[error("failed to get a VBS report via VBS guest device")]
     GetVbsReport(#[source] hvdef::HvError),
+    #[error("failed to get a device measurement report via VBS guest device")]
+    GetDeviceMeasurementReport(#[source] hvdef::HvError),
 }
 
 /// Use the SNP-defined derived key size for now.
@@ -209,5 +211,40 @@ impl TeeCall for VbsCall {
     /// Return TeeType::Vbs.
     fn tee_type(&self) -> TeeType {
         TeeType::Vbs
+    }
+}
+
+impl VbsCall {
+    /// Request a device measurement report from SVC via VBS VM call.
+    ///
+    /// This is an attestation-grade path for device measurement data,
+    /// routed through VBS VM hypercall → SVC rather than TDISP/VMBus.
+    pub fn get_device_measurement_report(
+        &self,
+        device_id: u64,
+        report_data: &[u8],
+    ) -> Result<Vec<u8>, Error> {
+        tracing::info!(
+            device_id,
+            report_data_len = report_data.len(),
+            "issuing device measurement report"
+        );
+
+        let mshv_hvcall = MshvHvcall::new().map_err(Error::OpenDevVbsGuest)?;
+        mshv_hvcall
+            .set_allowed_hypercalls(&[HypercallCode::HvCallVbsVmCallDeviceMeasurementReport]);
+        let measurement = mshv_hvcall
+            .vbs_vm_call_device_measurement_report(device_id, report_data)
+            .map_err(|e| {
+                tracing::error!(error = %e, "device measurement report failed");
+                Error::GetDeviceMeasurementReport(e)
+            })?;
+
+        tracing::info!(
+            first_16_bytes = ?&measurement[..16],
+            "device measurement report received"
+        );
+
+        Ok(measurement.to_vec())
     }
 }

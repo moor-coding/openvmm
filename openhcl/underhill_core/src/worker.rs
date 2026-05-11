@@ -2000,7 +2000,18 @@ async fn new_underhill_vm(
     let tee_call: Option<Box<dyn tee_call::TeeCall>> = match isolation {
         virt::IsolationType::Snp => Some(Box::new(tee_call::SnpCall)),
         virt::IsolationType::Tdx => Some(Box::new(tee_call::TdxCall)),
-        virt::IsolationType::Vbs => Some(Box::new(tee_call::VbsCall)),
+        virt::IsolationType::Vbs => {
+            let vbs_call = tee_call::VbsCall;
+            // Validate device measurement plumbing during boot.
+            match vbs_call.get_device_measurement_report(1, &[0u8; 64]) {
+                Ok(_) => tracing::info!("device measurement plumbing validated"),
+                Err(e) => tracing::warn!(
+                    error = %e,
+                    "device measurement plumbing validation failed (non-fatal)"
+                ),
+            }
+            Some(Box::new(vbs_call))
+        }
         virt::IsolationType::None => None,
     };
 

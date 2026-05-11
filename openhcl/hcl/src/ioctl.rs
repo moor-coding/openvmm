@@ -1331,6 +1331,50 @@ impl MshvHvcall {
             Err(status.result().unwrap_err())
         }
     }
+
+    /// Request a device measurement report from the host VSM.
+    ///
+    /// # Arguments
+    /// - `device_id`: The logical device ID to request measurement for.
+    /// - `report_data`: Optional nonce/report data to include (up to 64 bytes).
+    ///
+    /// Returns the measurement data or an error.
+    pub fn vbs_vm_call_device_measurement_report(
+        &self,
+        device_id: u64,
+        report_data: &[u8],
+    ) -> Result<[u8; hvdef::hypercall::VBS_VM_MAX_DEVICE_MEASUREMENT_SIZE], HvError> {
+        if report_data.len() > hvdef::hypercall::VBS_VM_REPORT_DATA_SIZE {
+            return Err(HvError::InvalidParameter);
+        }
+
+        let mut header = hvdef::hypercall::VbsVmCallDeviceMeasurementReport {
+            device_id,
+            report_data: [0; hvdef::hypercall::VBS_VM_REPORT_DATA_SIZE],
+        };
+
+        header.report_data[..report_data.len()].copy_from_slice(report_data);
+
+        let mut output: hvdef::hypercall::VbsVmCallDeviceMeasurementReportOutput =
+            FromZeros::new_zeroed();
+
+        // SAFETY: The input header and output are the correct types for this hypercall.
+        //         The hypercall output is validated right after the hypercall is issued.
+        let status = unsafe {
+            self.hvcall(
+                HypercallCode::HvCallVbsVmCallDeviceMeasurementReport,
+                &header,
+                &mut output,
+            )
+            .expect("submitting hypercall should not fail")
+        };
+
+        if status.result().is_ok() {
+            Ok(output.measurement_data)
+        } else {
+            Err(status.result().unwrap_err())
+        }
+    }
 }
 
 /// The HCL device and collection of fds.

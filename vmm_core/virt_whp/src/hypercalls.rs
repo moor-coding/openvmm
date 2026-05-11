@@ -16,6 +16,7 @@ use hvdef::HvMapGpaFlags;
 use hvdef::Vtl;
 use hvdef::hypercall::HostVisibilityType;
 use hvdef::hypercall::HvInterceptType;
+use hvdef::hypercall::VbsVmCallDeviceMeasurementReportOutput;
 use hvdef::hypercall::VbsVmCallReportOutput;
 use memory_range::MemoryRange;
 use std::iter::zip;
@@ -63,6 +64,7 @@ impl WhpHypercallExit<'_, '_> {
             hv1_hypercall::HvAcceptGpaPages,
             hv1_hypercall::HvModifySparseGpaPageHostVisibility,
             hv1_hypercall::HvVbsVmCallReport,
+            hv1_hypercall::HvVbsVmCallDeviceMeasurementReport,
         ]
     );
 }
@@ -698,6 +700,19 @@ impl hv1_hypercall::VbsVmCallReport for WhpHypercallExit<'_, '_> {
         // TODO: Implement actual VBS VM call report generation based on report_data.
         Ok(VbsVmCallReportOutput {
             report: [0xcdu8; hvdef::hypercall::VBS_VM_MAX_REPORT_SIZE],
+        })
+    }
+}
+
+impl hv1_hypercall::VbsVmCallDeviceMeasurementReport for WhpHypercallExit<'_, '_> {
+    fn vbs_vm_call_device_measurement_report(
+        &self,
+        _device_id: u64,
+        _report_data: &[u8],
+    ) -> hvdef::HvResult<VbsVmCallDeviceMeasurementReportOutput> {
+        // Stub: return dummy measurement data.
+        Ok(VbsVmCallDeviceMeasurementReportOutput {
+            measurement_data: [0xcd; hvdef::hypercall::VBS_VM_MAX_DEVICE_MEASUREMENT_SIZE],
         })
     }
 }

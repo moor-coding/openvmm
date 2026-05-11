@@ -751,6 +751,8 @@ open_enum! {
 
         // VBS guest calls.
         HvCallVbsVmCallReport = 0xC001,
+        HvCallVbsVmCallGetEntropy = 0xC002,
+        HvCallVbsVmCallDeviceMeasurementReport = 0xC003,
     }
 }
 
@@ -2232,6 +2234,21 @@ pub mod hypercall {
     #[derive(Copy, Clone, Debug, IntoBytes, Immutable, KnownLayout, FromBytes)]
     pub struct VbsVmCallReportOutput {
         pub report: [u8; VBS_VM_MAX_REPORT_SIZE],
+    }
+
+    pub const VBS_VM_MAX_DEVICE_MEASUREMENT_SIZE: usize = 2048;
+
+    #[repr(C)]
+    #[derive(Copy, Clone, Debug, IntoBytes, Immutable, KnownLayout, FromBytes)]
+    pub struct VbsVmCallDeviceMeasurementReport {
+        pub device_id: u64,
+        pub report_data: [u8; VBS_VM_REPORT_DATA_SIZE],
+    }
+
+    #[repr(C)]
+    #[derive(Copy, Clone, Debug, IntoBytes, Immutable, KnownLayout, FromBytes)]
+    pub struct VbsVmCallDeviceMeasurementReportOutput {
+        pub measurement_data: [u8; VBS_VM_MAX_DEVICE_MEASUREMENT_SIZE],
     }
 
     #[bitfield(u8)]
