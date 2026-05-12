@@ -1997,21 +1997,34 @@ async fn new_underhill_vm(
         vm_unique_id: dps.general.bios_guid.to_string(),
     };
 
+    // TODO: Temporary — validate device measurement plumbing during boot.
+    // This fires for both VBS and non-isolated OpenHCL to enable end-to-end
+    // testing in nested environments where the isolation privilege bit is not
+    // set. Remove once plumbing is validated.
+    {
+        let vbs_call = tee_call::VbsCall;
+        match vbs_call.get_device_measurement_report(1, &[0u8; 64]) {
+            Ok(data) => {
+                tracing::info!("device measurement plumbing validated");
+                eprintln!(
+                    "[device-measurement] plumbing validated, first 16 bytes: {:02x?}",
+                    &data[..16]
+                );
+            }
+            Err(e) => {
+                tracing::warn!(
+                    error = %e,
+                    "device measurement plumbing validation failed (non-fatal)"
+                );
+                eprintln!("[device-measurement] plumbing validation failed: {e}");
+            }
+        }
+    }
+
     let tee_call: Option<Box<dyn tee_call::TeeCall>> = match isolation {
         virt::IsolationType::Snp => Some(Box::new(tee_call::SnpCall)),
         virt::IsolationType::Tdx => Some(Box::new(tee_call::TdxCall)),
-        virt::IsolationType::Vbs => {
-            let vbs_call = tee_call::VbsCall;
-            // Validate device measurement plumbing during boot.
-            match vbs_call.get_device_measurement_report(1, &[0u8; 64]) {
-                Ok(_) => tracing::info!("device measurement plumbing validated"),
-                Err(e) => tracing::warn!(
-                    error = %e,
-                    "device measurement plumbing validation failed (non-fatal)"
-                ),
-            }
-            Some(Box::new(vbs_call))
-        }
+        virt::IsolationType::Vbs => Some(Box::new(tee_call::VbsCall)),
         virt::IsolationType::None => None,
     };
 
