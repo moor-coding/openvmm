@@ -202,7 +202,7 @@ where
     let persisted_region_size = PERSISTED_REGION_SIZE;
     offset += persisted_region_size;
 
-    // If hardware isolated, reserve a 2MB range for bounce buffering shared
+    // If isolated, reserve a 2MB range for bounce buffering shared
     // pages. This is done first because we know the start address is 2MB
     // aligned, with the next consumers wanting 2MB aligned ranges. This is
     // reserved at load time in order to guarantee the pagetables have entries
@@ -210,7 +210,7 @@ where
     //
     // Leave this as a gap, as there's no need to accept or describe this range
     // in the IGVM file.
-    let bounce_buffer = if matches!(isolation_type, IsolationType::Snp | IsolationType::Tdx) {
+    let bounce_buffer = if matches!(isolation_type, IsolationType::Snp | IsolationType::Tdx | IsolationType::Vbs) {
         let bounce_buffer_gpa = offset;
         assert_eq!(bounce_buffer_gpa % X64_LARGE_PAGE_SIZE, 0);
         let range = MemoryRange::new(bounce_buffer_gpa..bounce_buffer_gpa + X64_LARGE_PAGE_SIZE);
